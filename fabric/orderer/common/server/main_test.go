@@ -5,7 +5,6 @@ package server
 
 import (
 	"fmt"
-	"github.com/hyperledger/fabric/orderer/common/onboarding"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -38,6 +37,7 @@ import (
 	"github.com/hyperledger/fabric/orderer/common/cluster"
 	"github.com/hyperledger/fabric/orderer/common/localconfig"
 	"github.com/hyperledger/fabric/orderer/common/multichannel"
+	"github.com/hyperledger/fabric/orderer/common/onboarding"
 	server_mocks "github.com/hyperledger/fabric/orderer/common/server/mocks"
 	"github.com/hyperledger/fabric/orderer/consensus"
 	"github.com/hyperledger/fabric/protoutil"
@@ -194,14 +194,102 @@ func TestInitializeServerConfig(t *testing.T) {
 		clusterCert    string
 		clusterKey     string
 		clusterCA      string
+		isCluster      bool
 	}{
-		{"BadCertificate", badFile, goodFile, goodFile, goodFile, "", "", ""},
-		{"BadPrivateKey", goodFile, badFile, goodFile, goodFile, "", "", ""},
-		{"BadRootCA", goodFile, goodFile, badFile, goodFile, "", "", ""},
-		{"BadClientRootCertificate", goodFile, goodFile, goodFile, badFile, "", "", ""},
-		{"ClusterBadCertificate", goodFile, goodFile, goodFile, goodFile, badFile, goodFile, goodFile},
-		{"ClusterBadPrivateKey", goodFile, goodFile, goodFile, goodFile, goodFile, badFile, goodFile},
-		{"ClusterBadRootCA", goodFile, goodFile, goodFile, goodFile, goodFile, goodFile, badFile},
+		{
+			name:           "BadCertificate",
+			certificate:    badFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+		},
+		{
+			name:           "BadPrivateKey",
+			certificate:    goodFile,
+			privateKey:     badFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+		},
+		{
+			name:           "BadRootCA",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         badFile,
+			clientRootCert: goodFile,
+		},
+		{
+			name:           "BadClientRootCertificate",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: badFile,
+		},
+		{
+			name:           "BadCertificate - cluster reuses server config",
+			certificate:    badFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+			clusterCert:    "",
+			clusterKey:     "",
+			clusterCA:      "",
+			isCluster:      true,
+		},
+		{
+			name:           "BadPrivateKey - cluster reuses server config",
+			certificate:    goodFile,
+			privateKey:     badFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+			clusterCert:    "",
+			clusterKey:     "",
+			clusterCA:      "",
+			isCluster:      true,
+		},
+		{
+			name:           "BadRootCA - cluster reuses server config",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         badFile,
+			clientRootCert: goodFile,
+			clusterCert:    "",
+			clusterKey:     "",
+			clusterCA:      "",
+			isCluster:      true,
+		},
+		{
+			name:           "ClusterBadCertificate",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+			clusterCert:    badFile,
+			clusterKey:     goodFile,
+			clusterCA:      goodFile,
+			isCluster:      true,
+		},
+		{
+			name:           "ClusterBadPrivateKey",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+			clusterCert:    goodFile,
+			clusterKey:     badFile,
+			clusterCA:      goodFile,
+			isCluster:      true,
+		},
+		{
+			name:           "ClusterBadRootCA",
+			certificate:    goodFile,
+			privateKey:     goodFile,
+			rootCA:         goodFile,
+			clientRootCert: goodFile,
+			clusterCert:    goodFile,
+			clusterKey:     goodFile,
+			clusterCA:      badFile,
+			isCluster:      true,
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -222,8 +310,8 @@ func TestInitializeServerConfig(t *testing.T) {
 					},
 				},
 			}
-			assert.Panics(t, func() {
-				if tc.clusterCert == "" {
+			require.Panics(t, func() {
+				if !tc.isCluster {
 					initializeServerConfig(conf, nil)
 				} else {
 					initializeClusterClientConfig(conf)
@@ -386,7 +474,6 @@ func TestLoadLocalMSP(t *testing.T) {
 						SwOpts: &factory.SwOpts{
 							HashFamily: "SHA2",
 							SecLevel:   256,
-							Ephemeral:  true,
 						},
 					},
 				},
@@ -641,6 +728,32 @@ func TestUpdateTrustedRoots(t *testing.T) {
 	assert.Equal(t, 2, len(caMgr.ordererRootCAsByChain["testchannelid"]))
 	assert.Len(t, predDialer.Config.SecOpts.ServerRootCAs, 2)
 	grpcServer.Listener().Close()
+}
+
+func TestRootServerCertAggregation(t *testing.T) {
+	caMgr := &caManager{
+		appRootCAsByChain:     make(map[string][][]byte),
+		ordererRootCAsByChain: make(map[string][][]byte),
+	}
+
+	predDialer := &cluster.PredicateDialer{
+		Config: comm.ClientConfig{},
+	}
+
+	ca1, err := tlsgen.NewCA()
+	require.NoError(t, err)
+
+	ca2, err := tlsgen.NewCA()
+	require.NoError(t, err)
+
+	caMgr.ordererRootCAsByChain["foo"] = [][]byte{ca1.CertBytes()}
+	caMgr.ordererRootCAsByChain["bar"] = [][]byte{ca1.CertBytes()}
+
+	caMgr.updateClusterDialer(predDialer, [][]byte{ca2.CertBytes(), ca2.CertBytes(), ca2.CertBytes()})
+
+	require.Len(t, predDialer.Config.SecOpts.ServerRootCAs, 2)
+	require.Contains(t, predDialer.Config.SecOpts.ServerRootCAs, ca1.CertBytes())
+	require.Contains(t, predDialer.Config.SecOpts.ServerRootCAs, ca2.CertBytes())
 }
 
 func TestConfigureClusterListener(t *testing.T) {
@@ -917,7 +1030,6 @@ func genesisConfig(t *testing.T, genesisFile string) *localconfig.TopLevel {
 				SwOpts: &factory.SwOpts{
 					HashFamily: "SHA2",
 					SecLevel:   256,
-					Ephemeral:  true,
 				},
 			},
 		},

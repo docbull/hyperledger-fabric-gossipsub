@@ -170,11 +170,28 @@ type Authentication struct {
 type BCCSP struct {
 	Default string            `yaml:"Default,omitempty"`
 	SW      *SoftwareProvider `yaml:"SW,omitempty"`
+	PKCS11  *PKCS11           `yaml:"PKCS11,omitempty"`
 }
 
 type SoftwareProvider struct {
 	Hash     string `yaml:"Hash,omitempty"`
 	Security int    `yaml:"Security,omitempty"`
+}
+
+type PKCS11 struct {
+	Hash     string `yaml:"Hash,omitempty"`
+	Security int    `yaml:"Security,omitempty"`
+	Pin      string `yaml:"Pin,omitempty"`
+	Label    string `yaml:"Label,omitempty"`
+	Library  string `yaml:"Library,omitempty"`
+
+	AltID  string         `yaml:"AltID,omitempty"`
+	KeyIDs []KeyIDMapping `yaml:"KeyIDs,omitempty"`
+}
+
+type KeyIDMapping struct {
+	SKI string `yaml:"SKI,omitempty"`
+	ID  string `yaml:"ID,omitempty"`
 }
 
 type DeliveryClient struct {
