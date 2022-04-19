@@ -1,7 +1,7 @@
 # 🌒  🌓  🌔  🌕  🌖  🌗  🌘 
 
-# Hyperledger Fabric using GossipSub for Block Dissemination
-Hyperledger Fabric GossipSub-based block transceiver
+# Hyperledger Fabric using GossipSub
+Hyperledger Fabric Libp2p GossipSub-based block transceiver
 
 # -----------------------------------------------------
 
