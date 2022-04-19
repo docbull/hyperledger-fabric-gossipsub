@@ -45,6 +45,13 @@ func CombineRoutingFilters(filters ...RoutingFilter) RoutingFilter {
 	}
 }
 
+// SelectAllPeers returns all of peers list
+func SelectAllPeers(k int, peerPool []discovery.NetworkMember, filter RoutingFilter) []*comm.RemotePeer {
+	var res []*comm.RemotePeer
+
+	return res
+}
+
 // SelectPeers returns a slice of at most k peers randomly chosen from peerPool that match routingFilter filter.
 func SelectPeers(k int, peerPool []discovery.NetworkMember, filter RoutingFilter) []*comm.RemotePeer {
 	var res []*comm.RemotePeer
