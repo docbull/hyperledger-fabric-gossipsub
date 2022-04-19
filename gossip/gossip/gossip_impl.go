@@ -577,14 +577,17 @@ func (g *Node) gossipInChan(messages []*emittedGossipMessage, chanRoutingFactory
 		// For leadership messages we will select all peers that pass routing factory - e.g. all peers in channel and org
 		membership := g.disc.GetMembership()
 		var peers2Send []*comm.RemotePeer
-		// if HLF Peer is running on GossipSub mode, it forwards the blocks using GossipSub
+		// If HLF Peer is running on GossipSub mode, it forwards the blocks using GossipSub
+		// How to set GossipSub mode: ...
 		mode := os.Getenv("HLF_Mode")
 		if strings.Contains(mode, "GossipSub") {
 			if protoext.IsLeadershipMsg(messagesOfChannel[0].GossipMessage) {
 				peers2Send = filter.SelectPeers(len(membership), membership, chanRoutingFactory(gc))
 			} else if protoext.IsDataMsg(messagesOfChannel[0].GossipMessage) {
-				// docbull watson. ->
-				// g.comm.SendGossipSub(msg.SignedGossipMessage)
+				// docbull watson. -> If the sending message was a block data, the block data would be
+				// sent using libp2p GossipSub
+				// peers2Send = filter.SelectAllPeers(len(membership), membership, chanRoutingFactory(gc))
+				// g.comm.SendGossipSub(msg.SignedGossipMessage, peers2Send)
 			} else {
 				peers2Send = filter.SelectPeers(g.conf.PropagatePeerNum, membership, chanRoutingFactory(gc))
 			}
