@@ -215,6 +215,13 @@ func (c *commImpl) createConnection(endpoint string, expectedPKIID common.PKIidT
 	return nil, errors.WithStack(err)
 }
 
+// SendGossipSub sends block data using libp2p GossipSub. This function will be
+// called for block dissemination only; other messages will be sent using default
+// protocol e.g., gRPC
+func (c *commImpl) SendGossipSub(msg *protoext.SignedGossipMessage, peers ...*RemotePeer) {
+
+}
+
 func (c *commImpl) Send(msg *protoext.SignedGossipMessage, peers ...*RemotePeer) {
 	if c.isStopping() || len(peers) == 0 {
 		return
@@ -226,10 +233,6 @@ func (c *commImpl) Send(msg *protoext.SignedGossipMessage, peers ...*RemotePeer)
 			c.sendToEndpoint(peer, msg, nonBlockingSend)
 		}(peer, msg)
 	}
-}
-
-func (c *commImpl) SendGossipSub(msg *protoext.SignedGossipMessage, peers ...*RemotePeer) {
-
 }
 
 func (c *commImpl) sendToEndpoint(peer *RemotePeer, msg *protoext.SignedGossipMessage, shouldBlock blockingBehavior) {
