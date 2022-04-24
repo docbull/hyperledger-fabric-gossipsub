@@ -247,6 +247,11 @@ func (c *commImpl) sendToEndpoint(peer *RemotePeer, msg *protoext.SignedGossipMe
 	c.disconnect(peer.PKIID)
 }
 
+// GossipSubSend will be called when a peer sends block data
+func (c *commImpl) GossipSubSend(msg *protoext.SignedGossipMessage, peers ...*RemotePeer) {
+
+}
+
 func (c *commImpl) isStopping() bool {
 	return atomic.LoadInt32(&c.stopping) == int32(1)
 }

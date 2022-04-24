@@ -26,6 +26,9 @@ type Comm interface {
 	// Send sends a message to remote peers asynchronously
 	Send(msg *protoext.SignedGossipMessage, peers ...*RemotePeer)
 
+	// GossipSubSend sends block data using libp2p GossipSub, and it will be called for block dissemination only
+	GossipSubSend(msg *protoext.SignedGossipMessage, peers ...*RemotePeer)
+
 	// SendWithAck sends a message to remote peers, waiting for acknowledgement from minAck of them, or until a certain timeout expires
 	SendWithAck(msg *protoext.SignedGossipMessage, timeout time.Duration, minAck int, peers ...*RemotePeer) AggregatedSendResult
 
