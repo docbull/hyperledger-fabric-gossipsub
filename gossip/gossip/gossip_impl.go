@@ -7,21 +7,21 @@ SPDX-License-Identifier: Apache-2.0
 package gossip
 
 import (
+	"bufio"
+	"bytes"
+	"context"
 	"crypto/rand"
 	"flag"
-	"bytes"
-	"bufio"
 	"fmt"
 	"net"
-	"reflect"
-	"sync"
-	"sync/atomic"
-	"time"
-	"context"
-	"syscall"
-	"strings"
 	"os"
 	"os/signal"
+	"reflect"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
 
 	"github.com/golang/protobuf/proto"
 	pg "github.com/hyperledger/fabric-protos-go/gossip"
@@ -38,8 +38,6 @@ import (
 	"github.com/hyperledger/fabric/gossip/metrics"
 	"github.com/hyperledger/fabric/gossip/protoext"
 	"github.com/hyperledger/fabric/gossip/util"
-	"github.com/pkg/errors"
-	"google.golang.org/grpc"
 	"github.com/libp2p/go-libp2p"
 	"github.com/libp2p/go-libp2p-core/host"
 	"github.com/libp2p/go-libp2p-core/peer"
@@ -53,6 +51,8 @@ import (
 	"github.com/libp2p/go-tcp-transport"
 	ws "github.com/libp2p/go-ws-transport"
 	"github.com/multiformats/go-multiaddr"
+	"github.com/pkg/errors"
+	"google.golang.org/grpc"
 )
 
 const (
@@ -597,10 +597,29 @@ func (g *Node) gossipInChan(messages []*emittedGossipMessage, chanRoutingFactory
 		// For leadership messages we will select all peers that pass routing factory - e.g. all peers in channel and org
 		membership := g.disc.GetMembership()
 		var peers2Send []*comm.RemotePeer
-		if protoext.IsLeadershipMsg(messagesOfChannel[0].GossipMessage) {
-			peers2Send = filter.SelectPeers(len(membership), membership, chanRoutingFactory(gc))
+
+		// mode indicates HLF peer running mode, if this was set as GossipSub, when a peer forwards block data using
+		// libp2p GossipSub; how to set HLF peer running mode: ...
+		mode := os.Getenv("mode")
+		if strings.Contains(mode, "GossipSub") {
+			if protoext.IsLeadershipMsg(messagesOfChannel[0].GossipMessage) {
+				peers2Send = filter.SelectPeers(len(membership), membership, chanRoutingFactory(gc))
+			} else if protoext.IsDataMsg(messagesOfChannel[0].GossipMessage) {
+				// If a peer sends block data, it calls GossipSubSend
+				peers2Send = filter.SelectPeers(len(membership), membership, chanRoutingFactory(gc))
+				for _, msg := range messagesOfChannel {
+					filteredPeers := g.removeSelfLoop(msg, peers2Send)
+					g.comm.GossipSubSend(msg.SignedGossipMessage, filteredPeers...)
+				}
+			} else {
+				peers2Send = filter.SelectPeers(g.conf.PropagatePeerNum, membership, chanRoutingFactory(gc))
+			}
 		} else {
-			peers2Send = filter.SelectPeers(g.conf.PropagatePeerNum, membership, chanRoutingFactory(gc))
+			if protoext.IsLeadershipMsg(messagesOfChannel[0].GossipMessage) {
+				peers2Send = filter.SelectPeers(len(membership), membership, chanRoutingFactory(gc))
+			} else {
+				peers2Send = filter.SelectPeers(g.conf.PropagatePeerNum, membership, chanRoutingFactory(gc))
+			}
 		}
 
 		// Send the messages to the remote peers
@@ -1565,7 +1584,6 @@ func chatInputLoop(ctx context.Context, h host.Host, topic *pubsub.Topic, donec 
 	}
 	donec <- struct{}{}
 }
-
 
 func pubsubMessageHandler(id peer.ID, msg *SendMessage) {
 	handle, ok := handles[id.String()]
